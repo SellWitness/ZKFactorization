@@ -1,0 +1,30 @@
+
+
+commitment defines regular commitment implemented as simple sha256. Insecure, should add
+some randomness.
+
+timed_commitment implements timed commitment. both classes Commiter and Receiver are for
+one time use. the usual workflow:
+
+  Commiter c(&rng);
+  Commitment com = c.commit(K, m);
+  Receiver r(&rng, com);
+
+  // zk should be executed many times for security
+  for(int i = 0; i < 10; ++i){
+    vector<RegularCommitment> commits = r.zk_1();
+    vIvI zw = c.zk_2(commits);
+    vI commit_values = r.zk_3(zw);
+    vI y = c.zk_4(commit_values);
+    r.zk_5(y);
+  }
+
+  Integer vp = c.open();
+  res = r.open(vp);
+  // OR
+  res = r.force_open();
+  // OR
+  res = r.force_open_smart();
+
+The primes p, q are safe primes, so it is easy to find order of element g 
+
