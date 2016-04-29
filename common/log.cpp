@@ -24,3 +24,7 @@ void Log(const CryptoPP::Integer& x) {
 	cout << x << endl;
 }
 
+void LogTime(std::chrono::duration<double> time_span) {
+	cout << "It took " << time_span.count() << " seconds" << endl;
+}
+

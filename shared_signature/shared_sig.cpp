@@ -16,12 +16,65 @@ using namespace std;
 
 namespace shared_signature {
 
+	Integer hash_m_to_int(byte *m, unsigned m_len, unsigned ret_byte_count){
+		SHA256 sha256;
+    if (m_len != sha256.DigestSize()) {
+      throw ProtocolException("m_len != sha digest size");
+    }
+    return Integer(m, ret_byte_count);
+	}
+
 	Integer m_to_int(byte *m, unsigned m_len, unsigned ret_byte_count){
 		SHA256 sha256;
 		byte h[sha256.DigestSize()];
 		SHA256().CalculateDigest(h, m, m_len);
 		return Integer (h, ret_byte_count);
 	}
+
+  bool verify(CryptoPP::ECPPoint Q, byte *message, unsigned message_length, CryptoPP::Integer r, CryptoPP::Integer s){
+		auto ec = common::ec_parameters().GetCurve();
+	  auto G = common::ec_parameters().GetSubgroupGenerator();
+	  auto n = common::ec_parameters().GetGroupOrder();
+
+    Integer z = hash_m_to_int(message, message_length, n.ByteCount());
+    // verify
+    if (Q == ec.Identity()){
+      cerr << "Q == O" << endl;
+      return false;
+    }
+    if (!(ec.Multiply(n, Q) == ec.Identity())){
+      cerr << "n x Q != O" << endl;
+      return false;
+    }
+    if (r <= 0 || r >= n){
+      cerr << "incorrect r" << endl;
+      return false;
+    } 
+    if (s <= 0 || s >= n){
+      cerr << "incorrect s" << endl;
+      return false;
+    } 
+    Integer w = s.InverseMod(n);
+    Integer u1 = a_times_b_mod_c(z, w, n);
+    Integer u2 = a_times_b_mod_c(r, w, n);
+    ECPPoint P2 = ec.Add(ec.Multiply(u1, G), ec.Multiply(u2, Q));
+
+    if (P2.x != r){
+      cerr << "P2.x != r" << endl;
+      return false;
+    }
+    return true;
+  }
+
+  std::vector<byte> encode_signature(CryptoPP::Integer r, CryptoPP::Integer s) {
+    std::vector<byte> signature;
+    signature.resize(64);
+
+    r.Encode(signature.data(), 32);
+    s.Encode(signature.data() + 32, 32);
+
+    return signature;
+  }
 
 	/**************************
 	 * S
@@ -62,8 +115,18 @@ namespace shared_signature {
 		Integer s2 = paillier.dec(cb) % n;
 		s = a_times_b_mod_c(ks.InverseMod(n), s2, n);
 		if (s == 0){
-			cerr << "ERR s==0 restart protocol" << endl;
+			throw ProtocolException("ERR s==0 restart protocol");
 		}
+    if (s > n - s) {
+      s = n - s;
+    }
+
+		// bool result = verifier.VerifyMessage(get_data(), get_data_length(), signature, 64);
+		bool result = verify(Q, get_data(), get_data_length(), r, s);
+		if (!result){
+			throw ProtocolException("Invalid signature generated!");
+		} else {
+    }
 	}
 
 	/**************************
@@ -77,9 +140,8 @@ namespace shared_signature {
 		n(common::ec_parameters().GetGroupOrder()),
 		paillier(paillier_n, paillier_g) {
 
-			// TODO throw or exit
 			if (paillier.get_n() <= 2*n*n*n*n)
-				cerr << "too short paillier" << endl;
+				throw ProtocolException("too short paillier");
 		}
 
 	void B::start_init(){
@@ -97,9 +159,9 @@ namespace shared_signature {
 		K = ec.Multiply(kb, Ks);
 		r = K.x % n;
 		if (r == 0)
-			cerr << "ERR r==0" << endl;; // TODO
+			throw ProtocolException("r == 0");
 
-		Integer hi = m_to_int(m, m_len, n.ByteCount());
+		Integer hi = hash_m_to_int(m, m_len, n.ByteCount());
 		Integer c1 = paillier.enc( a_times_b_mod_c(kb.InverseMod(n), hi, n) );
 		Integer t = a_times_b_mod_c(a_times_b_mod_c(kb.InverseMod(n), r, n), db, n);
 		Integer c2 = a_times_b_mod_c(c1, a_exp_b_mod_c(cs, t, paillier.get_n2()), paillier.get_n2());
@@ -125,34 +187,13 @@ namespace shared_signature {
 		b->cont_sig(s->get_Ks(), s->get_cs(), b->get_data(), b->get_data_length());
 
 		s->finish_sig(b->get_r(), b->get_cb());
-
-		byte signature[64];
-		s->get_r().Encode(signature, 32);
-		s->get_s().Encode(signature+32, 32);
-
-		ECDSA<ECP, SHA256>::PublicKey publicKey;
-		publicKey.Initialize(ASN1::secp256k1(), s->get_Q());
-
-		ECDSA<ECP, SHA256>::Signer signer;
-		ECDSA<ECP, SHA256>::Verifier verifier(publicKey);
-
-		bool result = verifier.VerifyMessage(b->get_data(), b->get_data_length(), signature, 64);
-		if (!result){
-			throw ProtocolException("Invalid signature generated!");
-		}
 	}
 
 	void SharedSignature::open(S *s, B *b) {
 
 		vector<byte> signature = s->get_signature();
 
-		ECDSA<ECP, SHA256>::PublicKey publicKey;
-		publicKey.Initialize(ASN1::secp256k1(), b->get_Q());
-
-		ECDSA<ECP, SHA256>::Signer signer;
-		ECDSA<ECP, SHA256>::Verifier verifier(publicKey);
-
-		bool result = verifier.VerifyMessage(b->get_data(), b->get_data_length(), signature.data(), signature.size());
+		bool result = verify(b->get_Q(), b->get_data(), b->get_data_length(), s->get_r(), s->get_s());
 		b->setOpenVerified(result);
 	}
 }

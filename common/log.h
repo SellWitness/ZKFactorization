@@ -3,6 +3,7 @@
 
 #include <string>
 #include <vector>
+#include <chrono>
 #include <cryptopp/integer.h>
 
 void Log(int);
@@ -10,6 +11,7 @@ void Log(unsigned);
 void Log(const char*);
 void Log(const std::string&);
 void Log(const CryptoPP::Integer&);
+void LogTime(std::chrono::duration<double>);
 
 template <typename T>
 void Log(const std::vector<T> &v) {

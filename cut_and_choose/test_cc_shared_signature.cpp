@@ -24,8 +24,8 @@ int main(){
 
 	for(int i = -1; i < 10; ++i){
 
-		shared_signature::S s(&rng, ec_parameters);
-		shared_signature::B b(&rng, ec_parameters, s.get_paillier_n(), s.get_paillier_g());
+		shared_signature::S s;
+		shared_signature::B b(s.get_paillier_n(), s.get_paillier_g());
 
 		byte message[MESSAGE_LENGTH];
 
@@ -42,7 +42,7 @@ int main(){
 		prover.v = senders;
 		cut_and_choose::Verifier<shared_signature::B> verifier;
 		verifier.v = receivers;
-		verifier.i = 3;
+		verifier.i = {3};
 
 		shared_signature.init(&s, &b);
 		if (!(s.get_Q() == b.get_Q())){
@@ -54,7 +54,8 @@ int main(){
 			shared_signature::SharedSignature, 
 			shared_signature::S,
 			shared_signature::B,
-			T > (&prover, &verifier, i);
+			T,
+		  1	> (&prover, &verifier, i);
 
 		cout << verifier.res << endl;
 	}

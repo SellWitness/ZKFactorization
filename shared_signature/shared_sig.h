@@ -17,11 +17,19 @@ namespace shared_signature {
 	// convert to Integer
 	CryptoPP::Integer m_to_int(byte *m, unsigned m_len, unsigned ret_byte_count);
 
-	class S {
+	CryptoPP::Integer hash_m_to_int(byte *m, unsigned m_len, unsigned ret_byte_count);
+  
+  std::vector<byte> encode_signature(CryptoPP::Integer r, CryptoPP::Integer s);
+
+  bool verify(CryptoPP::ECPPoint Q, byte *, unsigned len, CryptoPP::Integer r, CryptoPP::Integer s);
+
+  class S {
 		private:
 			CryptoPP::ECP ec;
 			CryptoPP::ECPPoint G; // subgroup generator - base point
 			CryptoPP::Integer n;  // subgroup order
+
+			std::vector<byte> data;
 
 			CryptoPP::Integer ds;
 			CryptoPP::Integer ks;
@@ -43,6 +51,22 @@ namespace shared_signature {
 		public:
 
 			S();
+
+			byte *get_data(){
+				return data.data();
+			}
+
+			unsigned get_data_length(){
+        if (data.size() == 0) {
+          throw ProtocolException("Data is empty!");
+        }
+				return data.size();
+			}	
+
+			void set_data(byte *data, unsigned length){
+				this->data.resize(length);
+				copy(data, data + length, this->data.begin());
+			}
 
 			CryptoPP::Integer get_ds(){
 				return ds;
@@ -85,15 +109,8 @@ namespace shared_signature {
 			}
 			
 			std::vector<byte> get_signature(){
-
-				std::vector<byte> signature;
-				signature.resize(64);
-
-				r.Encode(signature.data(), 32);
-				s.Encode(signature.data() + 32, 32);
-
-				return signature;
-			}
+        return encode_signature(r, s);
+      }
 
 			void cheat(){
 				r = CryptoPP::Integer(common::rng(), 1, n);
@@ -141,6 +158,10 @@ namespace shared_signature {
 			B(CryptoPP::Integer paillier_n,
 				CryptoPP::Integer paillier_g);
 
+      CryptoPP::Integer get_n(){
+        return n;
+      }
+
 			CryptoPP::ECPPoint get_Qs(){
 				return Qs;
 			}
@@ -152,6 +173,10 @@ namespace shared_signature {
 			CryptoPP::ECPPoint get_Q(){
 				return Q;
 			}
+
+			CryptoPP::Integer get_db(){
+				return db;
+			} 
 
 			CryptoPP::Integer get_r(){
 				return r;

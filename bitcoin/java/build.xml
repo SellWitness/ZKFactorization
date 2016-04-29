@@ -1,0 +1,78 @@
+<project name="bitcoin_utils" default="compile" basedir=".">
+
+  <description>Thrift Java</description>
+
+  <property name="src" location="src" />
+  <property name="gen" location="gen-java" />
+  <property name="build" location="build" />
+
+  <path id="libs.classpath">
+    <fileset dir="${user.home}/thrift-0.9.3/lib/java/build">
+      <include name="*.jar" />
+      <exclude name="-test.jar" />
+    </fileset>
+    <fileset dir="${user.home}/thrift-0.9.3/lib/java/build/lib">
+      <include name="*.jar" />
+    </fileset>
+    <fileset dir="lib">
+      <include name="*.jar" />
+    </fileset>
+  </path>
+  <path id="build.classpath">
+    <path refid="libs.classpath" />
+    <pathelement path="${gen}" />
+  </path>
+  <path id="bitcoin_utils.classpath">
+    <path refid="build.classpath" />
+    <pathelement path="${build}" />
+    <pathelement path="bitcoin_utils.jar" />
+    <pathelement path="log4j.properties" />
+  </path>
+  
+  <target name="init">
+    <tstamp />
+    <mkdir dir="${build}"/>
+    <mkdir dir="${build}/log"/>
+  </target>
+
+  <target name="generate">
+    <!-- Generate the thrift gen-java source -->
+    <exec executable="thrift" failonerror="true">
+      <arg line="--gen java ../bitcoin_utils.thrift"/>
+    </exec>
+  </target>
+
+  <target name="compile" depends="init, generate">
+    <javac includeantruntime="false" srcdir="${gen}" destdir="${build}" classpathref="libs.classpath" />
+    <javac includeantruntime="false" srcdir="${src}" destdir="${build}" classpathref="build.classpath" />
+  </target>
+
+  <target name="seller" description="Run server for seller" depends="compile">
+      <java classname="JavaServer" fork="true"
+        classpathref="bitcoin_utils.classpath" failonerror="false">
+        <arg value="seller"/>
+        <arg value="9091"/>
+      </java>
+  </target>
+
+  <target name="buyer" description="Run server for buyer" depends="compile">
+      <java classname="JavaServer" fork="true"
+        classpathref="bitcoin_utils.classpath" failonerror="false">
+        <arg value="buyer"/>
+        <arg value="9092"/>
+      </java>
+  </target>
+
+  <target name="info" description="Print balance and address" depends="compile">
+      <java classname="BalanceAndAddress" fork="true"
+        classpathref="bitcoin_utils.classpath" failonerror="false">
+      </java>
+  </target>
+
+  <target name="clean">
+    <delete dir="${build}" />
+    <delete dir="${gen}"/>
+    <delete file="bitcoin_utils.jar" />
+  </target>
+
+</project>

@@ -1,0 +1,13 @@
+*
+!/**/
+!*.*
+*.o
+*.swp
+trash
+bitcoin/cpp/gen-cpp
+bitcoin/java/gen-java
+bitcoin/java/build
+*.spvchain
+*.wallet
+bitcoin-testnet-box/1/regtest
+bitcoin-testnet-box/2/regtest

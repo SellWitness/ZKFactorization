@@ -1,65 +1,68 @@
-
 #include "timed_commitment.h"
 #include "bit_utils.h"
 
 #include <iostream>
-#include <ctime>
+#include <chrono>
 
 using namespace CryptoPP;
 using namespace std;
+using namespace std::chrono;
 using namespace timed_commitment;
+
+
+duration<double> time_span(high_resolution_clock::time_point &end, high_resolution_clock::time_point &start) {
+	return duration_cast<duration<double>>(end - start);
+}
 
 void test(int K, string m, bool t = false){
 
-  time_t start, end; 
+	high_resolution_clock::time_point start, end;
 
   if (t){
     cerr << "--- " << "K : " << K << " ------------" << endl;
   }
 
-  start = time(NULL);
+ 	start = high_resolution_clock::now();
   Commiter c;
-  end = time(NULL);
+  end = high_resolution_clock::now();
 
   if (t){
-    cerr << "init   " << difftime(end, start) << endl;
+    cerr << "init   " << time_span(end, start).count() << endl;
   }
 
   // cerr << "commit" << endl;
-  start = time(NULL);
+  start = high_resolution_clock::now();
   Commitment com = c.commit(K, BitUtils::string_to_bits(m));
 
   // cerr << "receiver" << endl;
   Receiver r;
 	r.accept_commitment(com);
   
-  // cerr << "zk" << endl;
-  for(int i = 0; i < 10; ++i){
-    vector<RegularCommitment> commits = r.zk_1();
-    vIvI zw = c.zk_2(commits);
-    vI commit_values = r.zk_3(zw);
-    vI y = c.zk_4(commit_values);
-    r.zk_5(y);
-  }
-  end = time(NULL);
+  end = high_resolution_clock::now();
 
   if (t){
-    cerr << "commit " << difftime(end, start) << endl;
+    cerr << "commit " << time_span(end, start).count() << endl;
   }
 
   // cerr << "open" << endl;
+  start = high_resolution_clock::now();
   Integer vp = c.open();
 
   // cerr << "open" << endl;
   string m2 = BitUtils::bits_to_string(r.open(vp));
+  end = high_resolution_clock::now();
 
   if (m != m2){
     cerr << "FAIL open" << endl;
   } else {
     // cerr << "OK" << endl;
   }
+
+  if (t){
+    cerr << "open " << time_span(end, start).count() << endl;
+  }
   
-  start = time(NULL);
+  start = high_resolution_clock::now();
   // cerr << "force open" << endl;
   string m3 = BitUtils::bits_to_string(r.force_open());
   if (m != m3){
@@ -67,26 +70,9 @@ void test(int K, string m, bool t = false){
   } else {
     // cerr << "OK" << endl;
   }
-  end = time(NULL);
+  end = high_resolution_clock::now();
 
-  if (t){
-    cerr << "force open " << difftime(end, start) << endl;
-  }
-
-  start = time(NULL);
-  // cerr << "force open smart" << endl;
-  string m4 = BitUtils::bits_to_string(r.force_open_smart());
-  if (m != m4){
-    cerr << "FAIL force open smart" << endl;
-  } else {
-    // cerr << "OK" << endl;
-  }
-
-  end = time(NULL);
-
-  if (t){
-    cerr << "force open smart" << difftime(end, start) << endl;
-  }
+  cerr << "force open " << K << ": " << time_span(end, start).count() << endl;
 
   if (t){
     cerr << "--------------------" << endl;
@@ -111,18 +97,12 @@ int test2(int K, string m){
 		return 1;
 	}
 
-	string m3 = BitUtils::bits_to_string(r.force_open_smart());
-	if (m3 != m){
-		cerr << "ERR force open smart failed" << endl;
-		return 1;
-	}
-
 	return 0;
 }
 
 int main(){
   string m = "hello world";
-
+/*
   cerr << "small test" << endl;
 
   for(int i = 0; i < 10; ++i){
@@ -141,11 +121,13 @@ int main(){
     common::rng().GenerateBlock(m, i+5);
     test2(18, string((char *)m));
 	}
-
+*/
   cerr << "time test" << endl;
-  for(int K = 18; K < 21; ++K){
-    string m = "hello world";
-    test(K, m, true);
+  for(int K = 26; K < 31; ++K){
+		m += " a little longer";
+		for (int i = 0; i < 10; ++i) {
+    	test(K, m, false);
+		}
   }
 }
 
