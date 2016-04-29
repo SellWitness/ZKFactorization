@@ -1,0 +1,175 @@
+
+
+This is description of implementation of Selling Information protocol.
+In this protocol Seller sells factorization of integer n. Buyer pays 
+agreed amount of bitcoins a in return learns p, q s.t. p*q = n.
+If Seller won't accept payment Buyer won't learn p and q but will
+be able to get its bitcoins back after some time.
+
+Implementation is split into multiple modules:
+
+bitcoin - functionality relating to bitcoin
+common - utilities and common functions
+cut_and_choose - implementation of cut and choose
+  protocol.h - describes interface for protocol to be used by cut and choose
+sha_commitment - simple commitment based on sha256 hash function
+shared_signature - protocol for signing message by two parties that share private key
+  paillier - homomorphic cryptosystem
+timed_commitment - commitment that can be opened by brute force after a period of time
+main 
+
+Technologies used:
+- C++ - most of the code base
+- java - bitcoin part
+- cryptopp - library for crypto in C++
+- thrift - inter-language server/client communication
+- bitcoinj - library for bitcoin in java
+- gnu make 
+- ant
+
+Protocols used:
+- shared signature
+  Phase 1 - init
+    During initialization two parties generate public key and
+  each party learns its secret share of corresponing secret key
+  Phase 2 - sign
+    Parties compute a signature of a given message with respect to
+  public key generate in first phase. Only one party will learn
+  the signature and the other will only learn one half of the
+  signature which is random and doesn't reveal any information
+  about it.
+
+- paillier cryptosystem
+  Used in share signature as homomorphic assymetric encryption 
+  scheme. Homomorphic means that given public key and encryption
+  of two messages m1 and m2 it is possible to compute encryption 
+  of m1 + m2.
+
+- cut and choose 
+  Cut and choose is a protocol for verifying that other pary 
+  followed the protocol and didn't try to cheat. In this protocol
+  parties execute protocol multiple times. Afterwards verifier
+  picks a random execution of protocol and prover reveals information
+  about all executions of protocol except the one chosen by 
+  verifier. Verifier can verify that prover didn't cheat in any
+  of opened executions and therefore can be sure with Pr = 1-1/n
+  where n is number of executions that prover didn't cheat in 
+  the execution verifier picked.
+
+- sha commitment 
+  Simple commitment scheme in which to commit to message commiter
+  concatenates message with random bytes and hashes it. To open 
+  commitment commiter reveals randomness and message
+
+- timed commitment 
+  This is commitment that can be broken after a period of time.
+  How much time is needed to break it open depends on power
+  of machine that is used to break it but doesn't depend on
+  how many machines are used. In other words breaking cannot
+  be parallelized.
+
+Short description.
+
+  This is proof of concept implementation of the protocol. It is 
+  not possible to use this implementation for real transactions
+  because both parties execute in a single process. It is possible 
+  to split those and use it as a proper protocol. To do so one 
+  would have to implement networking and intermediate layer for
+  communication between parties.
+  Additionaly to the main process of the protocol each party
+  needs a java server for bitcoin operations. Buyer also needs
+  sufficient funds for payment and fees.
+
+Setup:
+  - install make, g++, javac, cryptopp, thift, ant, bitcoind
+
+Parameters:
+	You can change the parameters in the file common/common.h
+
+Compiling:
+  make
+    
+Running:
+  - in bitcoin-testnet-box
+    `make start`
+    to start local testnet chain
+  - in bitcoin/java
+    `ant info`
+    to display current balance and fresh receive address
+  - in bitcoin-testnet-box
+    `make send ADDRESS=<receive address> AMOUNT=1`
+    `for i in {1..10000}; do make generate; sleep 1; done`
+    to transfer funds to the buyer and start generating blocks
+  - in bitcoin/java
+    `ant seller`
+    `ant buyer` 
+    both have to be running before main is started
+  - in main
+    `./main`  
+
+    main will ask for a couple parameters:
+    `
+    Input primes
+    p: 2733906078961418700131896968275991522166420460430647894832913680961337964046745548832700923259041571508866841275600710092573
+		q: 4733906078961418709131896968275991522166420460430647894832913580961337964046745548832700923259041571508866841975600710092389
+    Input price in satoshis
+    price: 20000
+    Should seller cheat and not accept payment?
+    cheat 0/1: 0
+    `
+    
+    p and q are the primes that seller will sell.
+    If cheat is 1 (true) then seller will never accept payment
+    and buyer will break timed commitment and get money back.
+
+Design decisions:
+
+  - Using bitcoinj: 
+  Using bitcoinj has many advantages but combining Java and C++ 
+  adds additional level of complexity and overhead.
+  It is library that is widely used, tested and very well documented.
+  It is easy to setup and works almost out of the box. I used thrift 
+  as a way of communicating main process with bitcoinj helpers.
+
+  - Protocol
+  Protocol is a simple abstract class that declares 3 function 
+    virtual void init(A *, B *) = 0;
+    virtual void exec(A *, B *) = 0;
+    virtual void open(A *, B *) = 0;
+  Init is called before the main protocol part and should be used 
+  for setup. Exec should execute the protocol. During open parties
+  or one party should prove that it didn't cheat. In all cases in 
+  this implementation it means reavealing some secret information
+  about this instance of protocol. During open verifier should set
+  open_verified to true if prover didn't cheat.
+  Protocols can be joined to make up more complex protocols and 
+  this is the case in signature-key protocol.
+
+  - Cut and choose.
+  This is simple implementation that executes protocol T times,
+  then verifier picks a random set of numbers i: 0 <= i < T and prover 
+  opens all but i-th instance of protocol for i in the set.
+  
+  - Main: 
+    Main defines the top level protocol - sell information and 
+  sub-protocol - signature key - that will be executed in a cut
+  -and-choose. 
+    In the signature-key sub-protocol parties generate 
+  transactions that will be used, signature on one of the 
+  transactions, set of keys derived from the signature and 
+  time lock of a secret that enable Buyer to get back Bitcoins
+  if Seller won't redeem them.
+    In the sell-information protocol the first part is to execute
+  cut-and-choose of signature-key. Later parties continue protocol
+  to exchange and prove validity of square roots. Finally the last
+  steps are payment and retrieval of the factorization or
+  breaking time lock and buyer getting money back. 
+
+  - Thrift and communication between main and servers with bitcoin
+  utilities. 
+    Thrift is a framework for creating server/client based systems.
+  In this case main process uses RPC to request different actions
+  to be executed. Any data sent between those to components need
+  to be serialized and deserialized which requires extra attention
+  and testing. 
+  
